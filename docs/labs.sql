@@ -1,7 +1,7 @@
 
 
-DROP MATERIALIZED VIEW IF EXISTS ALINE_LABS CASCADE;
-CREATE MATERIALIZED VIEW ALINE_LABS as
+
+CREATE  VIEW ALINE_LABS as
 
 -- count the number of blood gas measurements
 -- abg_count - number of labs with pH/PCO2/PO2

@@ -14,8 +14,8 @@
 --  Dobutamine, Epinephrine, Norepinephrine (sourced from INPUTEVENTS_MV and INPUTEVENTS_CV)
 --  Urine output (sourced from OUTPUTEVENTS)
 
-DROP MATERIALIZED VIEW IF EXISTS ALINE_SOFA CASCADE;
-CREATE MATERIALIZED VIEW ALINE_SOFA AS
+
+CREATE  VIEW ALINE_SOFA AS
 -- extract PaO2/FiO2
 -- do not need to worry about patient ventilation
 with stg_fio2 as

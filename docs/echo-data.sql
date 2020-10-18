@@ -5,8 +5,8 @@
 -- It can be rejoined to the original notes in NOTEVENTS using ROW_ID
 -- Just keep in mind that ROW_ID will differ across versions of MIMIC-III.
 
-DROP MATERIALIZED VIEW IF EXISTS ALINE_ECHODATA CASCADE;
-CREATE MATERIALIZED VIEW ALINE_ECHODATA AS
+
+CREATE  VIEW ALINE_ECHODATA AS
 with ed as
 (
 select

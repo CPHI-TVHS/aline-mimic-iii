@@ -1,6 +1,6 @@
 -- Extract data which is based on ICD-9 codes
-DROP MATERIALIZED VIEW IF EXISTS ALINE_ICD CASCADE;
-CREATE MATERIALIZED VIEW ALINE_ICD AS
+
+CREATE  VIEW ALINE_ICD AS
 select
   co.hadm_id
   , max(case when icd9_code in

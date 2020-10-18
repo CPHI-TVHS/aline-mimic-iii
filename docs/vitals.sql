@@ -1,6 +1,5 @@
 
-DROP MATERIALIZED VIEW IF EXISTS ALINE_VITALS CASCADE;
-CREATE MATERIALIZED VIEW ALINE_VITALS as
+CREATE  VIEW ALINE_VITALS as
 
 -- first, group together ITEMIDs for the same vital sign
 with vitals_stg0 as

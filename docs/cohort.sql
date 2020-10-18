@@ -24,8 +24,7 @@
 --  ventdurations - extracted by mimic-code/etc/ventilation-durations.sql
 
 
-DROP MATERIALIZED VIEW IF EXISTS ALINE_COHORT CASCADE;
-CREATE MATERIALIZED VIEW ALINE_COHORT as
+CREATE  VIEW ALINE_COHORT as
 
 -- get start time of arterial line
 -- Definition of arterial line insertion:
