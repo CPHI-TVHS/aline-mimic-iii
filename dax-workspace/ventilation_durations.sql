@@ -13,8 +13,10 @@
 
 -- See the ventilation_classification.sql query for step 1 of the above.
 -- This query has the logic for converting events into durations.
-with vd0 as
-(
+drop temporary table if exists vd0;
+CREATE TEMPORARY TABLE vd0 
+-- as
+-- (
   select
     icustay_id
     -- this carries over the previous charttime which had a mechanical ventilation event
@@ -28,10 +30,18 @@ with vd0 as
     , OxygenTherapy
     , Extubated
     , SelfExtubated
-  from `physionet-data.mimiciii_derived.ventilation_classification`
-)
-, vd1 as
-(
+  from `ventilation_classification`
+  -- LIMIT 10
+  ;
+-- )
+-- , 
+drop temporary table if exists vd1;
+
+-- select * from vd0;
+
+CREATE TEMPORARY TABLE vd1 
+-- as
+-- (
   select
       icustay_id
       , charttime_lag
@@ -46,7 +56,7 @@ with vd0 as
           -- if the current observation indicates mechanical ventilation is present
           -- calculate the time since the last vent event
           when MechVent=1 then
-            DATETIME_DIFF(CHARTTIME, charttime_lag, MINUTE)/60
+            0 -- DATETIME_DIFF(CHARTTIME, charttime_lag, MINUTE)/60
           else null
         end as ventduration
 
@@ -72,15 +82,18 @@ with vd0 as
           -- if patient has initiated oxygen therapy, and is not currently vented, start a newvent
           when MechVent = 0 and OxygenTherapy = 1 then 1
             -- if there is less than 8 hours between vent settings, we do not treat this as a new ventilation event
-          when CHARTTIME > DATETIME_ADD(charttime_lag, INTERVAL '8' HOUR)
+          when CHARTTIME > DATE_ADD(charttime_lag, INTERVAL 8 HOUR)
             then 1
         else 0
         end as newvent
   
-  FROM vd0 ventsettings
-)
-, vd2 as
-(
+  FROM vd0 ventsettings;
+-- )
+-- , 
+drop temporary table if exists vd2;
+CREATE TEMPORARY TABLE vd2 
+-- as
+-- (
   select vd1.*
   -- create a cumulative sum of the instances of new ventilation
   -- this results in a monotonic integer assigned to each instance of ventilation
@@ -89,16 +102,18 @@ with vd0 as
       OVER ( partition by icustay_id order by charttime )
     else null end
     as ventnum
-  --- now we convert CHARTTIME of ventilator settings into durations
-  from vd1
-)
+  -- now we convert CHARTTIME of ventilator settings into durations
+  from vd1;
+-- )
 -- create the durations for each mechanical ventilation instance
+
+CREATE TABLE ventilation_durations
 select icustay_id
   -- regenerate ventnum so it's sequential
   , ROW_NUMBER() over (partition by icustay_id order by ventnum) as ventnum
   , min(charttime) as starttime
   , max(charttime) as endtime
-  , DATETIME_DIFF(max(charttime), min(charttime), MINUTE)/60 AS duration_hours
+  , TIMESTAMPDIFF(MINUTE, max(charttime), min(charttime))/60 AS duration_hours
 from vd2
 group by icustay_id, vd2.ventnum
 having min(charttime) != max(charttime)
@@ -107,5 +122,4 @@ having min(charttime) != max(charttime)
 -- this excludes a frequent situation of NIV/oxygen before intub
 -- in these cases, ventnum=0 and max(mechvent)=0, so they are ignored
 and max(mechvent) = 1
-limit 10
 order by icustay_id, ventnum
