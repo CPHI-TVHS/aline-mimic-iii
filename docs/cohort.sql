@@ -1,105 +1,67 @@
--- This query defines the cohort used for the ALINE study.
+drop temporary table if exists a;
+drop temporary table if exists ve;
+drop temporary table if exists serv;
+drop temporary table if exists co;
+drop table if exists ALINE_COHORT;
 
--- Inclusion criteria:
---  adult patients
---  In ICU for at least 24 hours
---  First ICU admission
---  mechanical ventilation within the first 12 hours
---  medical or surgical ICU admission
-
--- Exclusion criteria:
---  **Angus sepsis
---  **On vasopressors (?is this different than on dobutamine)
---  IAC placed before admission
---  CSRU patients
-
--- **These exclusion criteria are applied in the data.sql file.
-
--- This query also extracts demographics, and necessary preliminary flags needed
--- for data extraction. For example, since all data is extracted before
--- ventilation, we need to extract start times of ventilation
-
-
--- This query requires the following tables:
---  ventdurations - extracted by mimic-code/etc/ventilation-durations.sql
-
-
-CREATE  VIEW ALINE_COHORT as
-
--- get start time of arterial line
--- Definition of arterial line insertion:
---  First measurement of invasive blood pressure
-with a as
-(
-  select icustay_id
-  , min(charttime) as starttime_aline
+CREATE TEMPORARY TABLE a 
+  select icustay_id, min(charttime) as starttime_aline
   from chartevents
   where icustay_id is not null
-  and valuenum is not null
+		and valuenum is not null
   and itemid in
   (
-    51, --	Arterial BP [Systolic]
-    6701, --	Arterial BP #2 [Systolic]
-    220050, --	Arterial Blood Pressure systolic
+    51, 
+    6701, 
+    220050, 
 
-    8368, --	Arterial BP [Diastolic]
-    8555, --	Arterial BP #2 [Diastolic]
-    220051, --	Arterial Blood Pressure diastolic
+    8368, 
+    8555, 
+    220051, 
 
-    52, --"Arterial BP Mean"
-    6702, --	Arterial BP Mean #2
-    220052, --"Arterial Blood Pressure mean"
-    225312 --"ART BP mean"
+    52, 
+    6702, 
+    220052, 
+    225312 
   )
   group by icustay_id
-)
--- first time ventilation was started
--- last time ventilation was stopped
-, ve as
-(
+  limit 1;
+
+create temporary table ve as
   select icustay_id
-    , sum(extract(epoch from endtime-starttime))/24.0/60.0/60.0 as vent_day
+  , sum( endtime-starttime)/24.0/60.0/60.0 as vent_day
     , min(starttime) as starttime_first
     , max(endtime) as endtime_last
-  from ventdurations vd
+  from ventilation_durations vd
   group by icustay_id
-)
-, serv as
-(
+  limit 1;
+
+create temporary table serv as
     select ie.icustay_id, se.curr_service
     , ROW_NUMBER() over (partition by ie.icustay_id order by se.transfertime DESC) as rn
     from icustays ie
     inner join services se
       on ie.hadm_id = se.hadm_id
       and se.transfertime < ie.intime + interval '2' hour
-)
--- cohort view - used to define other concepts
-, co as
-(
-  select
-    ie.subject_id, ie.hadm_id, ie.icustay_id
+    limit 1;
+
+create temporary table co
+select
+    ie.subject_id
+    , ie.hadm_id
+    , ie.icustay_id
     , ie.intime
     , to_char(ie.intime, 'day') as day_icu_intime
-    , extract(dow from ie.intime) as day_icu_intime_num
-    , extract(hour from ie.intime) as hour_icu_intime
+    , DAYOFWEEK(ie.intime) as day_icu_intime_num
+    , extract(HOUR from ie.intime) as hour_icu_intime
     , ie.outtime
-
     , ROW_NUMBER() over (partition by ie.subject_id order by adm.admittime, ie.intime) as stay_num
-    , extract(epoch from (ie.intime - pat.dob))/365.242/24.0/60.0/60.0 as age
+    , UNIX_TIMESTAMP(ie.intime - pat.dob)/365.242/24.0/60.0/60.0 as age
     , pat.gender
     , case when pat.gender = 'M' then 1 else 0 end as gender_num
-
-    -- TODO: weight_first, height_first, bmi
-    --  bmi
-
-    -- service
-
-    -- collapse ethnicity into fixed categories
-
-    -- time of a-line
     , a.starttime_aline
     , case when a.starttime_aline is not null then 1 else 0 end as aline_flg
-    , extract(epoch from (a.starttime_aline - ie.intime))/24.0/60.0/60.0 as aline_time_day
+    , UNIX_TIMESTAMP(a.starttime_aline - ie.intime) / 24.0 / 60.0 /60.0 as aline_time_day
     , case
         when a.starttime_aline is not null
          and a.starttime_aline <= ie.intime + interval '1' hour
@@ -116,7 +78,9 @@ with a as
     , case
         when a.starttime_aline is not null and a.starttime_aline > ie.intime + interval '1' hour and ve.starttime_first<=a.starttime_aline then 1
         when a.starttime_aline is not null and a.starttime_aline > ie.intime + interval '1' hour and ve.starttime_first>a.starttime_aline then 0
-        when a.starttime_aline is null and ( (ve.starttime_first-ie.intime) <= interval '2' hour) then 1
+        when a.starttime_aline is null 
+        -- and ( (ve.starttime_first - ie.intime) <= interval '2' hour) 
+        then 1
         when a.starttime_aline is null then 0 -- otherwise, ventilated 2 hours after admission
         else NULL
       end as vent_b4_aline
@@ -125,20 +89,20 @@ with a as
     , ve.vent_day
 
     -- number of days free of ventilator after *last* extubation
-    , extract(epoch from (ie.outtime - ve.endtime_last))/24.0/60.0/60.0 as vent_free_day
+    , UNIX_TIMESTAMP( (ie.outtime - ve.endtime_last))/24.0/60.0/60.0 as vent_free_day
 
     -- number of days *not* on a ventilator
-    , extract(epoch from (ie.outtime - ie.intime))/24.0/60.0/60.0 - vent_day as vent_off_day
+    , UNIX_TIMESTAMP( (ie.outtime - ie.intime))/24.0/60.0/60.0 - vent_day as vent_off_day
 
 
     , ve.starttime_first as vent_starttime
     , ve.endtime_last as vent_endtime
 
     -- cohort flags // demographics
-    , extract(epoch from (ie.outtime - ie.intime))/24.0/60.0/60.0 as icu_los_day
-    , extract(epoch from (adm.dischtime - adm.admittime))/24.0/60.0/60.0 as hospital_los_day
-    , extract('dow' from intime) as intime_dayofweek
-    , extract('hour' from intime) as intime_hour
+    , UNIX_TIMESTAMP  (ie.outtime - ie.intime)/24.0/60.0/60.0 as icu_los_day
+    , UNIX_TIMESTAMP(adm.dischtime - adm.admittime)/24.0/60.0/60.0 as hospital_los_day
+    , DAYOFWEEK(intime) as intime_dayofweek
+    , extract(HOUR from intime) as intime_hour
 
     -- will be used to exclude patients in CSRU
     -- also only include those in CMED or SURG
@@ -154,11 +118,11 @@ with a as
     , case when adm.deathtime is not null then 1 else 0 end as hosp_exp_flg
     , case when adm.deathtime <= ie.outtime then 1 else 0 end as icu_exp_flg
     , case when pat.dod <= (ie.intime + interval '28' day) then 1 else 0 end as day_28_flg
-    , extract(epoch from (pat.dod - adm.admittime))/24.0/60.0/60.0 as mort_day
+    , UNIX_TIMESTAMP(pat.dod - adm.admittime)/24.0/60.0/60.0 as mort_day
 
     , case when pat.dod is null
         then 150 -- patient deaths are censored 150 days after admission
-        else extract(epoch from (pat.dod - adm.admittime))/24.0/60.0/60.0
+        else UNIX_TIMESTAMP(pat.dod - adm.admittime)/24.0/60.0/60.0
       end as mort_day_censored
     , case when pat.dod is null then 1 else 0 end as censor_flg
 
@@ -175,7 +139,9 @@ with a as
     on ie.icustay_id = s.icustay_id
     and s.rn = 1
   where ie.intime > (pat.dob + interval '16' year) -- only adults
-)
+	limit 1;
+
+create table ALINE_COHORT
 select
   co.*
 from co
@@ -190,9 +156,3 @@ and service_unit not in
   ,'NB'
   ,'NBB'
 );
---  TODO: can't define medical or surgical ICU admission using ICU service type
-
-
--- Recall, two exclusion criteria are applied in data.sql:
---  **Angus sepsis
---  **On vasopressors (?is this different than on dobutamine)
