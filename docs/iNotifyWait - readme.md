@@ -1,0 +1,1 @@
+./inotifywait.exe -m -r -e modify --format="git commit -m 'autocommit on change' %w" "U:\Workspaces\westerd\_datasets\MIMIC-III-Arterial-Line\repo\aline-mimic-iii"
