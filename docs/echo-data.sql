@@ -10,15 +10,15 @@ CREATE MATERIALIZED VIEW ALINE_ECHODATA AS
 with ed as
 (
 select
-  co.subject_id, co.hadm_id, co.icustay_id
-  , ne.ROW_ID
-  , ne.chartdate
+  co."SUBJECT_ID", co."HADM_ID", co."ICUSTAY_ID"
+  , ne."ROW_ID"
+  , ne."CHARTDATE"
 
   -- charttime is always null for echoes..
   -- however, the time is available in the echo text, e.g.:
   -- , substring(ne.text, 'Date/Time: [\[\]0-9*-]+ at ([0-9:]+)') as TIMESTAMP
   -- we can therefore impute it and re-create charttime
-  , cast(to_timestamp( (to_char( ne.chartdate, 'DD-MM-YYYY' ) || substring(ne.text, 'Date/Time: [\[\]0-9*-]+ at ([0-9:]+)')),
+  , cast(to_timestamp( (to_char( ne."CHARTDATE", 'DD-MM-YYYY' ) || substring(ne."TEXT", 'Date/Time: [\[\]0-9*-]+ at ([0-9:]+)')),
             'DD-MM-YYYYHH24:MI') as timestamp without time zone)
     as charttime
 
@@ -29,78 +29,78 @@ select
   -- substring only returns the item in ()s
   -- note: the '?' makes it non-greedy. if you exclude it, it matches until it reaches the *last* \n
 
-  , substring(ne.text, 'Indication: (.*?)\n') as Indication
+  , substring(ne."TEXT", 'Indication: (.*?)\n') as Indication
 
   -- sometimes numeric values contain de-id text, e.g. [** Numeric Identifier **]
   -- this removes that text
   , case
-      when substring(ne.text, 'Height: \(in\) (.*?)\n') like '%*%'
+      when substring(ne."TEXT", 'Height: \(in\) (.*?)\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'Height: \(in\) (.*?)\n') as numeric)
+      else cast(substring(ne."TEXT", 'Height: \(in\) (.*?)\n') as numeric)
     end as Height
 
   , case
-      when substring(ne.text, 'Weight \(lb\): (.*?)\n') like '%*%'
+      when substring(ne."TEXT", 'Weight \(lb\): (.*?)\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'Weight \(lb\): (.*?)\n') as numeric)
+      else cast(substring(ne."TEXT", 'Weight \(lb\): (.*?)\n') as numeric)
     end as Weight
 
   , case
-      when substring(ne.text, 'BSA \(m2\): (.*?) m2\n') like '%*%'
+      when substring(ne."TEXT", 'BSA \(m2\): (.*?) m2\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'BSA \(m2\): (.*?) m2\n') as numeric)
+      else cast(substring(ne."TEXT", 'BSA \(m2\): (.*?) m2\n') as numeric)
     end as BSA -- ends in 'm2'
 
-  , substring(ne.text, 'BP \(mm Hg\): (.*?)\n') as BP -- Sys/Dias
+  , substring(ne."TEXT", 'BP \(mm Hg\): (.*?)\n') as BP -- Sys/Dias
 
   , case
-      when substring(ne.text, 'BP \(mm Hg\): ([0-9]+)/[0-9]+?\n') like '%*%'
+      when substring(ne."TEXT", 'BP \(mm Hg\): ([0-9]+)/[0-9]+?\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'BP \(mm Hg\): ([0-9]+)/[0-9]+?\n') as numeric)
+      else cast(substring(ne."TEXT", 'BP \(mm Hg\): ([0-9]+)/[0-9]+?\n') as numeric)
     end as BPSys -- first part of fraction
 
   , case
-      when substring(ne.text, 'BP \(mm Hg\): [0-9]+/([0-9]+?)\n') like '%*%'
+      when substring(ne."TEXT", 'BP \(mm Hg\): [0-9]+/([0-9]+?)\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'BP \(mm Hg\): [0-9]+/([0-9]+?)\n') as numeric)
+      else cast(substring(ne."TEXT", 'BP \(mm Hg\): [0-9]+/([0-9]+?)\n') as numeric)
     end as BPDias -- second part of fraction
 
   , case
-      when substring(ne.text, 'HR \(bpm\): ([0-9]+?)\n') like '%*%'
+      when substring(ne."TEXT", 'HR \(bpm\): ([0-9]+?)\n') like '%*%'
         then null
-      else cast(substring(ne.text, 'HR \(bpm\): ([0-9]+?)\n') as numeric)
+      else cast(substring(ne."TEXT", 'HR \(bpm\): ([0-9]+?)\n') as numeric)
     end as HR
 
-  , substring(ne.text, 'Status: (.*?)\n') as Status
-  , substring(ne.text, 'Test: (.*?)\n') as Test
-  , substring(ne.text, 'Doppler: (.*?)\n') as Doppler
-  , substring(ne.text, 'Contrast: (.*?)\n') as Contrast
-  , substring(ne.text, 'Technical Quality: (.*?)\n') as TechnicalQuality
+  , substring(ne."TEXT", 'Status: (.*?)\n') as Status
+  , substring(ne."TEXT", 'Test: (.*?)\n') as Test
+  , substring(ne."TEXT", 'Doppler: (.*?)\n') as Doppler
+  , substring(ne."TEXT", 'Contrast: (.*?)\n') as Contrast
+  , substring(ne."TEXT", 'Technical Quality: (.*?)\n') as TechnicalQuality
 
-  , ROW_NUMBER() over (PARTITION BY co.icustay_id ORDER BY cast(to_timestamp( (to_char( ne.chartdate, 'DD-MM-YYYY' ) || substring(ne.text, 'Date/Time: [\[\]0-9*-]+ at ([0-9:]+)')),
+  , ROW_NUMBER() over (PARTITION BY co."ICUSTAY_ID" ORDER BY cast(to_timestamp( (to_char( ne."CHARTDATE", 'DD-MM-YYYY' ) || substring(ne."TEXT", 'Date/Time: [\[\]0-9*-]+ at ([0-9:]+)')),
             'DD-MM-YYYYHH24:MI') as timestamp without time zone)) as rn
 from ALINE_COHORT co
 left join noteevents ne
-  on co.hadm_id = ne.hadm_id
-  and ne.category = 'Echo'
-  and ne.chartdate <= co.vent_starttime
-  and ne.chartdate >= date_trunc('day', co.vent_starttime - interval '7' day)
+  on co."HADM_ID" = ne."HADM_ID"
+  and ne."CATEGORY" = 'Echo'
+  and ne."CHARTDATE" <= co."vent_starttime"
+  and ne."CHARTDATE" >= date_trunc('day', co."vent_starttime" - interval '7' day)
 )
 select
-  subject_id
-, hadm_id
-, icustay_id
-, row_id
-, chartdate
-, charttime
-, indication
+  "SUBJECT_ID"
+, "HADM_ID"
+, "ICUSTAY_ID"
+, "ROW_ID"
+, "CHARTDATE"
+, "charttime"
+, "indication"
 -- height in inches
-, height as height_first
+, "height" as height_first
 -- weight in lbs
-, weight as weight_first
+, "weight" as weight_first
 , case
-    when weight is not null and height is not null
-        then 703.0 * (weight / (height*height))
+    when "weight" is not null and "height" is not null
+        then 703.0 * ("weight" / ("height"*"height"))
     else null
   end as BMI
 , bsa as bsa_first

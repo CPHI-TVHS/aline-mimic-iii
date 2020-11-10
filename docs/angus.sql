@@ -12,8 +12,8 @@
 -- By Sharukh Lokhandwala and Tom Pollard 2015
 
 -- Appendix 1: ICD9-codes (infection)
-DROP MATERIALIZED VIEW IF EXISTS aline_sepsis CASCADE;
-CREATE MATERIALIZED VIEW aline_sepsis as
+
+CREATE  VIEW aline_sepsis as
 
 WITH infection_group AS (
 	SELECT subject_id, hadm_id,
