@@ -15,33 +15,33 @@ with bg as
 -- we would like the *last* lab preceeding mechanical ventilation
 , labs_preceeding as
 (
-  select co.subject_id, co.hadm_id
-    , l.valuenum, l.charttime
+  select co."SUBJECT_ID", co."HADM_ID"
+    , l."VALUENUM", l."CHARTTIME"
     , case
-            when itemid = 51006 then 'BUN'
-            when itemid = 50806 then 'CHLORIDE'
-            when itemid = 50902 then 'CHLORIDE'
-            when itemid = 50912 then 'CREATININE'
-            when itemid = 50811 then 'HEMOGLOBIN'
-            when itemid = 51222 then 'HEMOGLOBIN'
-            when itemid = 51265 then 'PLATELET'
-            when itemid = 50822 then 'POTASSIUM'
-            when itemid = 50971 then 'POTASSIUM'
-            when itemid = 50824 then 'SODIUM'
-            when itemid = 50983 then 'SODIUM'
-            when itemid = 50803 then 'TOTALCO2' -- actually is 'BICARBONATE'
-            when itemid = 50882 then 'TOTALCO2' -- actually is 'BICARBONATE'
-            when itemid = 50804 then 'TOTALCO2'
-            when itemid = 51300 then 'WBC'
-            when itemid = 51301 then 'WBC'
+            when "ITEMID" = 51006 then 'BUN'
+            when "ITEMID" = 50806 then 'CHLORIDE'
+            when "ITEMID" = 50902 then 'CHLORIDE'
+            when "ITEMID" = 50912 then 'CREATININE'
+            when "ITEMID" = 50811 then 'HEMOGLOBIN'
+            when "ITEMID" = 51222 then 'HEMOGLOBIN'
+            when "ITEMID" = 51265 then 'PLATELET'
+            when "ITEMID" = 50822 then 'POTASSIUM'
+            when "ITEMID" = 50971 then 'POTASSIUM'
+            when "ITEMID" = 50824 then 'SODIUM'
+            when "ITEMID" = 50983 then 'SODIUM'
+            when "ITEMID" = 50803 then 'TOTALCO2' -- actually is 'BICARBONATE'
+            when "ITEMID" = 50882 then 'TOTALCO2' -- actually is 'BICARBONATE'
+            when "ITEMID" = 50804 then 'TOTALCO2'
+            when "ITEMID" = 51300 then 'WBC'
+            when "ITEMID" = 51301 then 'WBC'
           else null
         end as label
   from labevents l
   inner join ALINE_COHORT co
-    on l.subject_id = co.subject_id
-    and l.charttime <= co.vent_starttime
-    and l.charttime >= co.vent_starttime - interval '1' day
-  where l.itemid in
+    on l."SUBJECT_ID" = co."SUBJECT_ID"
+    and l."CHARTTIME" <= co.vent_starttime
+    and l."CHARTTIME" >= co.vent_starttime - interval '1' day
+  where l."ITEMID" in
   (
      51300,51301 -- wbc
     ,50811,51222 -- hgb
@@ -58,29 +58,29 @@ with bg as
 , labs_rn as
 (
   select
-    subject_id, hadm_id, valuenum, label
-    , ROW_NUMBER() over (partition by hadm_id, label order by charttime DESC) as rn
+    "SUBJECT_ID", "HADM_ID", "VALUENUM", "label"
+    , ROW_NUMBER() over (partition by "HADM_ID", label order by "CHARTTIME" DESC) as rn
   from labs_preceeding
 )
 , labs_grp as
 (
   select
-    subject_id, hadm_id
-    , max(case when label = 'BUN' then valuenum else null end) as BUN
-    , max(case when label = 'CHLORIDE' then valuenum else null end) as CHLORIDE
-    , max(case when label = 'CREATININE' then valuenum else null end) as CREATININE
-    , max(case when label = 'HEMOGLOBIN' then valuenum else null end) as HEMOGLOBIN
-    , max(case when label = 'PLATELET' then valuenum else null end) as PLATELET
-    , max(case when label = 'POTASSIUM' then valuenum else null end) as POTASSIUM
-    , max(case when label = 'SODIUM' then valuenum else null end) as SODIUM
-    , max(case when label = 'TOTALCO2' then valuenum else null end) as TOTALCO2
-    , max(case when label = 'WBC' then valuenum else null end) as WBC
+    "SUBJECT_ID", "HADM_ID"
+    , max(case when label = 'BUN' then "VALUENUM" else null end) as BUN
+    , max(case when label = 'CHLORIDE' then "VALUENUM" else null end) as CHLORIDE
+    , max(case when label = 'CREATININE' then "VALUENUM" else null end) as CREATININE
+    , max(case when label = 'HEMOGLOBIN' then "VALUENUM" else null end) as HEMOGLOBIN
+    , max(case when label = 'PLATELET' then "VALUENUM" else null end) as PLATELET
+    , max(case when label = 'POTASSIUM' then "VALUENUM" else null end) as POTASSIUM
+    , max(case when label = 'SODIUM' then "VALUENUM" else null end) as SODIUM
+    , max(case when label = 'TOTALCO2' then "VALUENUM" else null end) as TOTALCO2
+    , max(case when label = 'WBC' then "VALUENUM" else null end) as WBC
 
   from labs_rn
   where rn = 1
-  group by subject_id, hadm_id
+  group by "SUBJECT_ID", "HADM_ID"
 )
-select co.subject_id, co.hadm_id
+select co."SUBJECT_ID", co."HADM_ID"
   , lg.bun as bun_first
   , lg.chloride as chloride_first
   , lg.creatinine as creatinine_first
@@ -93,4 +93,4 @@ select co.subject_id, co.hadm_id
 
 from ALINE_COHORT co
 left join labs_grp lg
-  on co.hadm_id = lg.hadm_id
+  on co."HADM_ID" = lg."HADM_ID"
