@@ -13,9 +13,9 @@ CREATE  VIEW ALINE_VASO_FLG as
 with io_cv as
 (
   select
-    icustay_id, charttime, itemid, stopped, rate, amount
-  from mimiciii.inputevents_cv
-  where itemid in
+    "ICUSTAY_ID", "CHARTTIME", "ITEMID", "STOPPED", "RATE", "AMOUNT"
+  from public."inputevents_cv"
+  where "ITEMID" in
   (
     30047,30120 -- norepinephrine
     ,30044,30119,30309 -- epinephrine
@@ -24,17 +24,17 @@ with io_cv as
     ,30043,30307,30125 -- dopamine
     ,30046 -- isuprel
   )
-  and rate is not null
-  and rate > 0
+  and "RATE" is not null
+  and "RATE" > 0
 )
--- select only the ITEMIDs from the inputevents_mv table related to vasopressors
+-- select only the "ITEMID"s from the inputevents_mv table related to vasopressors
 , io_mv as
 (
   select
-    icustay_id, linkorderid, starttime, endtime
-  from mimiciii.inputevents_mv io
-  -- Subselect the vasopressor ITEMIDs
-  where itemid in
+    "ICUSTAY_ID", "LINKORDERID", "STARTTIME", "ENDTIME"
+  from public."inputevents_mv" io
+  -- Subselect the vasopressor "ITEMID"s
+  where "ITEMID" in
   (
   221906 -- norepinephrine
   ,221289 -- epinephrine
@@ -43,17 +43,17 @@ with io_cv as
   ,221662 -- dopamine
   ,227692 -- isuprel
   )
-  and rate is not null
-  and rate > 0
-  and statusdescription != 'Rewritten' -- only valid orders
+  and "RATE" is not null
+  and "RATE" > 0
+  and "STATUSDESCRIPTION" != 'Rewritten' -- only valid orders
 )
 select
-  co.subject_id, co.hadm_id, co.icustay_id
-  , max(case when coalesce(io_mv.icustay_id, io_cv.icustay_id) is not null then 1 else 0 end) as vaso_flg
+  co."SUBJECT_ID", co."HADM_ID", co."ICUSTAY_ID"
+  , max(case when coalesce(io_mv."ICUSTAY_ID", io_cv."ICUSTAY_ID") is not null then 1 else 0 end) as vaso_flg
 from aline_cohort co
 left join io_mv
-  on co.icustay_id = io_mv.icustay_id
+  on co."ICUSTAY_ID" = io_mv."ICUSTAY_ID"
 left join io_cv
-  on co.icustay_id = io_cv.icustay_id
-group by co.subject_id, co.hadm_id, co.icustay_id
-order by icustay_id;
+  on co."ICUSTAY_ID" = io_cv."ICUSTAY_ID"
+group by co."SUBJECT_ID", co."HADM_ID", co."ICUSTAY_ID"
+order by "ICUSTAY_ID";
