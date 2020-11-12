@@ -16,9 +16,9 @@
 CREATE  VIEW aline_sepsis as
 
 WITH infection_group AS (
-	SELECT subject_id, hadm_id,
+	SELECT "SUBJECT_ID", "HADM_ID",
 	CASE
-		WHEN substring(icd9_code,1,3) IN ('001','002','003','004','005','008',
+		WHEN substring("ICD9_CODE",1,3) IN ('001','002','003','004','005','008',
 			   '009','010','011','012','013','014','015','016','017','018',
 			   '020','021','022','023','024','025','026','027','030','031',
 			   '032','033','034','035','036','037','038','039','040','041',
@@ -28,61 +28,61 @@ WITH infection_group AS (
 			   '462','463','464','465','481','482','485','486','494','510',
 			   '513','540','541','542','566','567','590','597','601','614',
 			   '615','616','681','682','683','686','730') THEN 1
-		WHEN substring(icd9_code,1,4) IN ('5695','5720','5721','5750','5990','7110',
+		WHEN substring("ICD9_CODE",1,4) IN ('5695','5720','5721','5750','5990','7110',
 				'7907','9966','9985','9993') THEN 1
-		WHEN substring(icd9_code,1,5) IN ('49121','56201','56203','56211','56213',
+		WHEN substring("ICD9_CODE",1,5) IN ('49121','56201','56203','56211','56213',
 				'56983') THEN 1
 		ELSE 0 END AS infection
-	FROM MIMICIII.DIAGNOSES_ICD),
+	FROM public.DIAGNOSES_ICD),
 -- Appendix 2: ICD9-codes (organ dysfunction)
 	organ_diag_group as (
-	SELECT subject_id, hadm_id,
+	SELECT "SUBJECT_ID", "HADM_ID",
 		CASE
 		-- Acute Organ Dysfunction Diagnosis Codes
-		WHEN substring(icd9_code,1,3) IN ('458','293','570','584') THEN 1
-		WHEN substring(icd9_code,1,4) IN ('7855','3483','3481',
+		WHEN substring("ICD9_CODE",1,3) IN ('458','293','570','584') THEN 1
+		WHEN substring("ICD9_CODE",1,4) IN ('7855','3483','3481',
 				'2874','2875','2869','2866','5734')  THEN 1
 		ELSE 0 END AS organ_dysfunction,
 		-- Explicit diagnosis of severe sepsis or septic shock
 		CASE
-		WHEN substring(icd9_code,1,5) IN ('99592','78552')  THEN 1
+		WHEN substring("ICD9_CODE",1,5) IN ('99592','78552')  THEN 1
 		ELSE 0 END AS explicit_sepsis
-	FROM MIMICIII.DIAGNOSES_ICD),
+	FROM public.DIAGNOSES_ICD),
 
 -- Mechanical ventilation
 	organ_proc_group as (
-	SELECT subject_id, hadm_id,
+	SELECT "SUBJECT_ID", "HADM_ID",
 		CASE
-		WHEN substring(icd9_code,1,4) IN ('9670','9671','9672') THEN 1
+		WHEN substring("ICD9_CODE",1,4) IN ('9670','9671','9672') THEN 1
 		ELSE 0 END AS mech_vent
-	FROM MIMICIII.PROCEDURES_ICD),
+	FROM public.PROCEDURES_ICD),
 
 -- Aggregate
 	aggregate as (
-	SELECT subject_id, hadm_id,
+	SELECT "SUBJECT_ID", "HADM_ID",
 		CASE
-		WHEN hadm_id in (SELECT DISTINCT hadm_id
+		WHEN "HADM_ID" in (SELECT DISTINCT "HADM_ID"
 				FROM infection_group
 				WHERE infection = 1) THEN 1
 			ELSE 0 END AS infection,
 		CASE
-		WHEN hadm_id in (SELECT DISTINCT hadm_id
+		WHEN "HADM_ID" in (SELECT DISTINCT "HADM_ID"
 				FROM organ_diag_group
 				WHERE explicit_sepsis = 1) THEN 1
 			ELSE 0 END AS explicit_sepsis,
 		CASE
-		WHEN hadm_id in (SELECT DISTINCT hadm_id
+		WHEN "HADM_ID" in (SELECT DISTINCT "HADM_ID"
 				FROM organ_diag_group
 				WHERE organ_dysfunction = 1) THEN 1
 			ELSE 0 END AS organ_dysfunction,
 		CASE
-		WHEN hadm_id in (SELECT DISTINCT hadm_id
+		WHEN "HADM_ID" in (SELECT DISTINCT "HADM_ID"
 				FROM organ_proc_group
 				WHERE mech_vent = 1) THEN 1
 			ELSE 0 END AS mech_vent
-	FROM MIMICIII.ADMISSIONS)
+	FROM public.ADMISSIONS)
 -- List angus score for each admission
-SELECT co.subject_id, co.hadm_id, co.icustay_id
+SELECT co."SUBJECT_ID", co."HADM_ID", co."ICUSTAY_ID"
 		, infection, explicit_sepsis
 		, organ_dysfunction, mech_vent
 		, CASE
@@ -92,4 +92,4 @@ SELECT co.subject_id, co.hadm_id, co.icustay_id
 				ELSE 0 END AS Angus
 FROM aline_cohort co
 inner join aggregate agg
-	on co.hadm_id = agg.hadm_id;
+	on co."HADM_ID" = agg."HADM_ID";
